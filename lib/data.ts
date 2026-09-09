@@ -68,6 +68,10 @@ export async function getProject(id: string): Promise<Project | undefined> {
 }
 
 export async function getProjectMatches(id: string) {
-  if (isDemoMode) return matches.filter((item) => item.project_id === id).map((match) => ({ ...match, candidate: demoCandidates.find((candidate) => candidate.id === match.candidate_id) }));
-  return fromSupabase<Array<Match & { candidate?: Candidate }>>(`candidate_project_matches?project_id=eq.${id}&select=*,candidate:candidates(*)&order=total_score.desc`);
+  if (isDemoMode) return matches.filter((item) => item.project_id === id).map((match) => ({ ...match, candidate: demoCandidates.find((candidate) => candidate.id === match.candidate_id), current_pipeline: pipelineEvents.find(event => event.candidate_id === match.candidate_id && event.project_id === id)?.stage || null }));
+  const [projectMatches, events] = await Promise.all([
+    fromSupabase<Array<Match & { candidate?: Candidate }>>(`candidate_project_matches?project_id=eq.${id}&select=*,candidate:candidates(*)&order=total_score.desc`),
+    fromSupabase<PipelineEvent[]>(`pipeline_events?project_id=eq.${id}&select=*&order=event_date.desc`),
+  ]);
+  return projectMatches.map(match => ({ ...match, current_pipeline: events.find(event => event.candidate_id === match.candidate_id)?.stage || null }));
 }

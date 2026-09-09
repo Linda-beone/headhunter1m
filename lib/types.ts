@@ -21,7 +21,7 @@ export type Candidate = {
   birth_date?: string | null;
   highest_education?: string | null;
   english_level?: string | null;
-  field_sources?: Record<string, "resume" | "ai_extracted" | "manual">;
+  field_sources?: Record<string, "resume" | "ai_extracted" | "manual" | "inferred">;
   manual_fields?: string[];
   updated_at: string;
 };
@@ -33,21 +33,36 @@ export type Experience = {
   normalized_company_name?: string | null; department?: string | null;
   start_date_raw?: string | null; end_date_raw?: string | null;
   responsibilities?: string[]; achievements?: string[]; technologies?: string[];
+  source?: "resume" | "ai_extracted" | "manual" | "inferred";
 };
 
 export type Project = {
-  id: string; client_name: string; job_title: string; location?: string | null;
+  id: string; project_code?: string | null; client_name: string; job_title: string; location?: string | null;
   salary_range?: string | null; experience_min?: number | null; experience_max?: number | null;
   must_have: string[]; nice_to_have: string[]; target_companies: string[];
+  must_have_criteria?: MatchCriterion[]; nice_to_have_criteria?: MatchCriterion[];
   status: string; updated_at: string;
+};
+
+export type MatchCriterion = {
+  name: string;
+  type: string;
+  importance: "critical" | "important" | "preferred";
+  evidence_keywords: string[];
+  description: string;
 };
 
 export type Match = {
   id: string; candidate_id: string; project_id: string; total_score?: number | null;
   technical_score?: number | null; industry_score?: number | null; location_score?: number | null;
   salary_score?: number | null; experience_score?: number | null; intent_score?: number | null;
-  match_level?: string | null; strengths: string[]; gaps: string[];
-  questions_to_verify: string[]; recommendation?: string | null; status: string;
+  match_level?: "A" | "B" | "C" | "D" | null; strengths: string[]; gaps: string[]; risks?: string[];
+  must_have_results?: Array<{ criterion: string; status: "met" | "not_met" | "unknown" | "partially_met"; evidence: string; impact: string }>;
+  questions_to_verify: string[];
+  recommendation?: "strong_recommend" | "recommend_after_call" | "hold" | "not_recommend" | null;
+  recommendation_reason?: string | null; confidence?: "high" | "medium" | "low" | null;
+  matcher_version?: string; ai_provider?: "kimi" | "openai" | null; fallback_used?: boolean;
+  status: string; updated_at?: string; current_pipeline?: string | null;
 };
 
 export type PipelineEvent = {

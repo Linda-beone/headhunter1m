@@ -22,6 +22,6 @@ export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?:
 }
 
 export function StatusPill({ status }: { status: string }) {
-  const map: Record<string, string> = { active: "积极看机会", open: "开放机会", passive: "被动看机会", not_looking: "暂不考虑", unknown: "状态未知", draft: "草稿", paused: "已暂停", closed: "已关闭", screening: "电话沟通", sourced: "已入库", strong: "强匹配", good: "较匹配" };
+  const map: Record<string, string> = { active: "积极看机会", open: "开放机会", passive: "被动看机会", not_looking: "暂不考虑", unknown: "信息未知", draft: "草稿", paused: "已暂停", closed: "已关闭", screening: "电话沟通", sourced: "已入库", A: "A级", B: "B级", C: "C级", D: "D级", met: "符合", partially_met: "部分符合", not_met: "不符合" };
   return <span className={`status status-${status}`}>{map[status] ?? status}</span>;
 }

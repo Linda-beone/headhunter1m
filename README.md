@@ -1,6 +1,6 @@
 # Headhunter Copilot
 
-猎头人才管理工具 MVP。Resume Parser v0.2 支持上传 PDF/DOCX 原始简历、Kimi 严格结构化解析、OpenAI 自动备选、候选人查重与人工冲突确认、原子写入 Supabase，以及 Candidate Profile 的原始简历和解析结果展示。本阶段不包含 Job Matcher。
+猎头人才管理工具 MVP。当前完成 Resume Parser v0.2 与 Job Matcher v0.1：上传 PDF/DOCX 简历、Kimi 优先/OpenAI 备选解析、候选人查重，以及候选人 × 单个职位的事实型匹配、解释与电话确认问题。
 
 未配置环境变量时，页面使用演示数据；简历解析按钮会提示先完成配置。
 
@@ -26,18 +26,21 @@ NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
 MOONSHOT_API_KEY=YOUR_MOONSHOT_API_KEY
 KIMI_RESUME_MODEL=kimi-k3
+KIMI_MATCH_MODEL=kimi-k3
 OPENAI_API_KEY=YOUR_OPENAI_API_KEY
 OPENAI_RESUME_MODEL=gpt-5-mini
+OPENAI_MATCH_MODEL=gpt-5-mini
+MATCH_CRITICAL_CAP=C
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY`、`MOONSHOT_API_KEY` 和 `OPENAI_API_KEY` 只在服务端读取，禁止改成 `NEXT_PUBLIC_*`，也不要提交 `.env.local`。未配置 OpenAI 时 Kimi 仍可独立工作；Kimi 请求失败且已配置 OpenAI 时，系统会自动降级到 OpenAI。
 
 ## Supabase Migration
 
-如果 v0.1 数据库已经创建，请在 Supabase SQL Editor 继续执行：
+如果第二阶段数据库已经创建，请在 Supabase SQL Editor 执行：
 
 ```text
-supabase/migrations/202609100003_kimi_primary_provider.sql
+supabase/migrations/202609100004_job_matcher_v01.sql
 ```
 
 全新数据库请依次执行：
@@ -45,8 +48,9 @@ supabase/migrations/202609100003_kimi_primary_provider.sql
 1. `supabase/migrations/202609090001_initial_schema.sql`
 2. `supabase/migrations/202609090002_resume_parser_v01.sql`
 3. `supabase/migrations/202609100003_kimi_primary_provider.sql`
+4. `supabase/migrations/202609100004_job_matcher_v01.sql`
 
-第二、三个 migration 会：
+这些 migration 会：
 
 - 创建 `resume_imports`，保存上传、解析、查重、完成或失败状态；
 - 扩展候选人字段、工作经历字段，以及标签的 `evidence` / `source`；
@@ -54,6 +58,7 @@ supabase/migrations/202609100003_kimi_primary_provider.sql
 - 将 `resumes` bucket 保持为 private，并限制 PDF/DOCX 与 15MB；
 - 用 `manual_fields` 和 `field_sources` 保护人工修改，后续 AI 解析不会覆盖人工字段。
 - 记录实际 AI Provider、文件/响应 ID、是否发生降级，以及标准化 token 用量。
+- 增加结构化 must-have / nice-to-have 标准，升级匹配结果字段，并初始化 P001/P002。
 
 ## 关键代码位置
 
@@ -69,6 +74,13 @@ supabase/migrations/202609100003_kimi_primary_provider.sql
 - 查重与冲突逻辑：`lib/resume/dedupe.ts`
 - 导入编排与原子提交：`lib/resume/import-service.ts`
 - Candidate Profile：`app/candidates/[id]/page.tsx`
+- Matcher Structured Output Schema：`lib/ai/schemas/job-match.ts`
+- Matcher Prompt：`lib/ai/prompts/job-matcher.ts`
+- Kimi/OpenAI Matcher 调度：`lib/ai/job-matcher.ts`
+- 已确认事实构建与来源过滤：`lib/matcher/facts.ts`
+- known-score normalization 与等级保护：`lib/matcher/scoring.ts`
+- 单对单匹配 API：`app/api/match/route.ts`
+- P001/P002 初始化：`supabase/migrations/202609100004_job_matcher_v01.sql`
 
 ## 验证命令
 
@@ -79,7 +91,7 @@ npm run lint
 npm run build
 ```
 
-单元测试覆盖中文简历结构、中英文术语、空字段、缺少联系方式/年龄、多段经历、查重、Kimi 严格 Schema 请求、Kimi 优先与 OpenAI 自动降级，以及 OpenAI API 失败。
+单元测试覆盖简历解析、查重、Provider 降级、known-score normalization、critical 等级保护，以及刘柳/光迅候选人 Golden Tests。
 
 ## 用真实简历验收
 
@@ -101,7 +113,9 @@ npm run build
 - Level 4 的公司名标准化只做保守文本归一化，始终要求人工判断。
 - 同一原文件 SHA-256 仍只允许形成一个已完成候选人，避免完全相同简历重复入库。
 - AI 输出仍需猎头人工复核。Kimi 的文件提取若无法读取扫描件，会在已配置时自动尝试 OpenAI。
-- 未实现 Job Matcher、职位推荐、候选人评分或批量上传。
+- Matcher 每次只处理一个候选人与一个职位，不会批量跑全部人才库。
+- 模型判断仍需猎头复核；服务端证据保护会阻止无关键词依据的 met 和无明确负面事实的 not_met。
+- 不会自动推荐给客户、发送通知、生成推荐信或改变 Pipeline。
 
 ## 第二阶段验收 Checklist
 
@@ -122,4 +136,20 @@ npm run build
 - [ ] Candidate Profile 展示全部解析分区和待确认信息
 - [ ] 失败不会留下半完成 candidate，且可重新解析
 - [ ] 单元测试、类型检查、Lint、生产构建全部通过
-- [ ] 页面没有新增 Job Matcher 行为
+- [ ] 页面没有自动 Job Matcher 行为
+
+## 第三阶段验收 Checklist
+
+- [ ] 执行 `202609100004_job_matcher_v01.sql` 后可看到 P001/P002
+- [ ] P001/P002 含结构化 must-have / nice-to-have criteria
+- [ ] Candidate Profile 可选择单个项目运行匹配或重新匹配
+- [ ] `POST /api/match` 只接受一个 `candidate_id` 和一个 `project_id`
+- [ ] 再次运行同一组合时更新记录，不创建重复 match
+- [ ] salary / intent 未知时数据库保存 null，总分按已知权重归一化
+- [ ] critical not_met 默认将等级最高限制为 C
+- [ ] Candidate Profile 显示维度评分、等级、建议、Strengths、Gaps、Risks、must-have 判断和 3–7 个电话问题
+- [ ] Project 页面支持按 Score / 等级 / 更新时间排序，以及 A/B/C/D 过滤
+- [ ] Project 候选人列表显示地点、推荐状态与当前 Pipeline，但 Matcher 不修改 Pipeline
+- [ ] 刘柳 P002 中 PCB 为 met，载板/MSAP 为 unknown，长期驻场需要确认
+- [ ] 光迅候选人 P001 中高速光模块、400G/800G、测试架构为 met，CMIS/MSA/Laser/英语保持 unknown
+- [ ] 单元测试、类型检查、Lint、生产构建全部通过

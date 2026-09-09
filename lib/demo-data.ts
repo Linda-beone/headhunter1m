@@ -19,7 +19,7 @@ export const projects: Project[] = [
 ];
 
 export const matches: Match[] = [
-  { id: "m1", candidate_id: "c1", project_id: "p1", total_score: 88, technical_score: 92, industry_score: 90, location_score: 100, salary_score: 85, experience_score: 90, intent_score: 72, match_level: "strong", strengths: ["8 年 B2B SaaS 产品经验", "现就职目标公司", "上海本地，地点完全匹配"], gaps: ["AI 产品经验需要进一步确认", "期望薪资接近预算上限"], questions_to_verify: ["目前管理的团队规模和职能构成？", "是否主导过 AI 功能从立项到上线？", "可接受的最低薪资和到岗周期？"], recommendation: "建议优先电话沟通，重点核实团队管理深度与 AI 产品经验。", status: "shortlisted" },
+  { id: "m1", candidate_id: "c1", project_id: "p1", total_score: 88, technical_score: 92, industry_score: 90, location_score: 100, salary_score: 85, experience_score: 90, intent_score: 72, match_level: "A", strengths: ["8 年 B2B SaaS 产品经验", "现就职目标公司", "上海本地，地点完全匹配"], gaps: ["AI 产品经验需要进一步确认", "期望薪资接近预算上限"], risks: ["期望薪资接近预算上限"], questions_to_verify: ["目前管理的团队规模和职能构成？", "是否主导过 AI 功能从立项到上线？", "可接受的最低薪资和到岗周期？"], recommendation: "recommend_after_call", recommendation_reason: "建议优先电话沟通，重点核实团队管理深度与 AI 产品经验。", confidence: "medium", status: "shortlisted" },
 ];
 
 export const pipelineEvents: PipelineEvent[] = [
