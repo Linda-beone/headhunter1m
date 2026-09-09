@@ -22,7 +22,7 @@ export type CandidateBundle = {
   tags: Array<{ id: string; tag: string; tag_type: string; confidence: number; evidence?: string | null; source?: string }>;
   matches: Array<Match & { project?: Project }>;
   pipeline: PipelineEvent[];
-  latestImport?: { id: string; original_filename: string; storage_path: string; parser_version: string; raw_parsed_json?: ParsedResume | null; completed_at?: string | null };
+  latestImport?: { id: string; original_filename: string; storage_path: string; parser_version: string; ai_provider?: "kimi" | "openai" | null; fallback_used?: boolean; raw_parsed_json?: ParsedResume | null; completed_at?: string | null };
 };
 
 export async function getCandidates(): Promise<Candidate[]> {
@@ -51,7 +51,7 @@ export async function getCandidateBundle(id: string): Promise<CandidateBundle | 
     fromSupabase<CandidateBundle["tags"]>(`candidate_tags?candidate_id=eq.${id}&select=*&order=confidence.desc`),
     fromSupabase<CandidateBundle["matches"]>(`candidate_project_matches?candidate_id=eq.${id}&select=*,project:search_projects(*)&order=total_score.desc`),
     fromSupabase<PipelineEvent[]>(`pipeline_events?candidate_id=eq.${id}&select=*&order=event_date.desc`),
-    fromSupabase<CandidateBundle["latestImport"][]>(`resume_imports?candidate_id=eq.${id}&status=eq.completed&select=id,original_filename,storage_path,parser_version,raw_parsed_json,completed_at&order=completed_at.desc&limit=1`),
+    fromSupabase<CandidateBundle["latestImport"][]>(`resume_imports?candidate_id=eq.${id}&status=eq.completed&select=id,original_filename,storage_path,parser_version,ai_provider,fallback_used,raw_parsed_json,completed_at&order=completed_at.desc&limit=1`),
   ]);
   return { candidate, experiences: candidateExperiences, tags: candidateTags, matches: candidateMatches, pipeline, latestImport: imports[0] };
 }

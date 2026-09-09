@@ -1,4 +1,4 @@
-export const RESUME_PARSER_VERSION = "resume_parser_v0.1";
+export const RESUME_PARSER_VERSION = "resume_parser_v0.2";
 
 export const resumeParserPrompt = `You are a Resume Parser for manufacturing and technology industry executive search.
 

@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildConflicts, findDuplicates } from "../lib/resume/dedupe";
 import { resumeJsonSchema, validateParsedResume, type ParsedResume } from "../lib/ai/schemas/resume";
-import { parseResume } from "../lib/ai/resume-parser";
+import { parseResumeWithProviders } from "../lib/ai/resume-parser";
+import { parseResumeWithKimi } from "../lib/ai/providers/kimi";
+import { parseResumeWithOpenAI } from "../lib/ai/providers/openai";
 import { safeStorageFilename } from "../lib/resume/filename";
 
 function resume(overrides: Partial<ParsedResume["candidate"]> = {}, experiences: ParsedResume["experiences"] = []): ParsedResume {
@@ -28,8 +30,50 @@ test("OpenAI API 失败时返回可重试错误", { concurrency: false }, async 
   const oldFetch = globalThis.fetch; const oldKey = process.env.OPENAI_API_KEY;
   process.env.OPENAI_API_KEY = "test-key";
   globalThis.fetch = async () => new Response(JSON.stringify({ error: { message: "temporary" } }), { status: 500 });
-  try { await assert.rejects(() => parseResume(new File(["resume"], "resume.pdf", { type: "application/pdf" })), /OpenAI 文件上传失败/); }
+  try { await assert.rejects(() => parseResumeWithOpenAI(new File(["resume"], "resume.pdf", { type: "application/pdf" })), /OpenAI 文件上传失败/); }
   finally { globalThis.fetch = oldFetch; if (oldKey) process.env.OPENAI_API_KEY = oldKey; else delete process.env.OPENAI_API_KEY; }
+});
+test("Kimi 成功时不会调用 OpenAI", async () => {
+  let openAICalls = 0;
+  const result = await parseResumeWithProviders(new File(["resume"], "resume.pdf"), undefined, [
+    { name: "kimi", configured: true, parse: async () => ({ parsed: resume(), provider: "kimi", fileId: "kimi-file", responseId: "kimi-response", durationMs: 1 }) },
+    { name: "openai", configured: true, parse: async () => { openAICalls += 1; throw new Error("should not run"); } },
+  ]);
+  assert.equal(result.provider, "kimi");
+  assert.equal(result.fallbackUsed, false);
+  assert.equal(openAICalls, 0);
+});
+test("Kimi 失败时自动使用 OpenAI 备选", async () => {
+  const result = await parseResumeWithProviders(new File(["resume"], "resume.pdf"), undefined, [
+    { name: "kimi", configured: true, parse: async () => { throw new Error("Kimi 暂时不可用"); } },
+    { name: "openai", configured: true, parse: async () => ({ parsed: resume(), provider: "openai", fileId: "openai-file", responseId: "openai-response", durationMs: 2 }) },
+  ]);
+  assert.equal(result.provider, "openai");
+  assert.equal(result.fallbackUsed, true);
+});
+test("Kimi 使用 file-extract 和严格 JSON Schema", { concurrency: false }, async () => {
+  const oldFetch = globalThis.fetch; const oldKey = process.env.MOONSHOT_API_KEY;
+  process.env.MOONSHOT_API_KEY = "test-key";
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  globalThis.fetch = async (input, init) => {
+    const url = String(input); calls.push({ url, init });
+    if (url.endsWith("/files")) return Response.json({ id: "file-kimi" }, { status: 201 });
+    if (url.endsWith("/content")) return new Response("刘柳，质量经理");
+    return Response.json({ id: "chat-kimi", choices: [{ finish_reason: "stop", message: { content: JSON.stringify(resume()) } }], usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150 } });
+  };
+  try {
+    const result = await parseResumeWithKimi(new File(["resume"], "中文简历.pdf", { type: "application/pdf" }));
+    const form = calls[0].init?.body as FormData;
+    const chatBody = JSON.parse(String(calls[2].init?.body));
+    assert.equal(form.get("purpose"), "file-extract");
+    assert.equal(chatBody.response_format.type, "json_schema");
+    assert.equal(chatBody.response_format.json_schema.strict, true);
+    assert.equal(result.provider, "kimi");
+    assert.equal(result.tokenUsage?.totalTokens, 150);
+  } finally {
+    globalThis.fetch = oldFetch;
+    if (oldKey) process.env.MOONSHOT_API_KEY = oldKey; else delete process.env.MOONSHOT_API_KEY;
+  }
 });
 test("严格 schema 顶层禁止额外字段并要求所有字段", () => { assert.equal(resumeJsonSchema.additionalProperties, false); assert.deepEqual(new Set(resumeJsonSchema.required), new Set(Object.keys(resumeJsonSchema.properties))); });
 test("中文简历名转换为 Supabase Storage 可接受的 ASCII key", () => {

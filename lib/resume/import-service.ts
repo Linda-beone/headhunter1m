@@ -28,10 +28,23 @@ export async function processImport(id: string) {
     if (!bytes.byteLength) throw new Error("简历文件为空。");
     const file = new File([bytes], item.original_filename, { type: item.mime_type });
     const result = await parseResume(file, AbortSignal.timeout(120_000));
-    await patchImport(id, { status: "parsed", raw_parsed_json: result.parsed, openai_file_id: result.fileId, openai_response_id: result.responseId });
+    await patchImport(id, {
+      status: "parsed",
+      raw_parsed_json: result.parsed,
+      ai_provider: result.provider,
+      provider_file_id: result.fileId,
+      provider_response_id: result.responseId,
+      fallback_used: result.fallbackUsed,
+      token_usage: result.tokenUsage || {},
+      ...(result.provider === "openai" ? { openai_file_id: result.fileId, openai_response_id: result.responseId } : {}),
+    });
     const existing = await supabaseRead<ExistingCandidate[]>("candidates?select=id,name,phone,email,wechat,current_company,current_title,current_city,age,current_salary,expected_salary&limit=5000");
     const duplicates = findDuplicates(result.parsed, existing);
-    console.info("resume_import", { resume_import_id: id, openai_response_id: result.responseId, duration_ms: result.durationMs, parser_version: RESUME_PARSER_VERSION, success: true });
+    console.info("resume_import", {
+      resume_import_id: id, ai_provider: result.provider, provider_response_id: result.responseId,
+      fallback_used: result.fallbackUsed, duration_ms: result.durationMs,
+      parser_version: RESUME_PARSER_VERSION, success: true,
+    });
     if (duplicates.length) {
       const payload = duplicates.map(match => ({ ...match, conflicts: buildConflicts(result.parsed, match.candidate) }));
       await patchImport(id, { status: "duplicate_found", duplicate_candidates: payload });

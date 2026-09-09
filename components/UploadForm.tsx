@@ -29,7 +29,7 @@ export function UploadForm({ demo }: { demo: boolean }) {
 
   async function submit() {
     if (!file) return setMessage("请选择 PDF 或 DOCX 简历。");
-    if (demo) return setMessage("请先配置 Supabase 和 OPENAI_API_KEY 后再解析简历。");
+    if (demo) return setMessage("请先配置 Supabase 和 MOONSHOT_API_KEY；OPENAI_API_KEY 可作为备选。");
     if (file.size > 15 * 1024 * 1024) return setMessage("文件超过 15MB，请压缩后重试。");
     setMessage(""); setDuplicates([]); setSelected(undefined); setStep(0);
     const form = new FormData(); form.append("file", file);
@@ -54,7 +54,7 @@ export function UploadForm({ demo }: { demo: boolean }) {
     {!duplicates.length && <><div role="button" tabIndex={0} aria-label="选择或拖放简历文件" className={`dropzone ${file ? "has-file" : ""}`} onClick={() => step < 0 && input.current?.click()} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && step < 0) input.current?.click(); }} onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); if (step < 0) setFile(e.dataTransfer.files[0] || null); }}>
       <input ref={input} hidden type="file" accept=".pdf,.docx" onChange={(e) => setFile(e.target.files?.[0] || null)} />
       <div className="upload-icon"><Icon name={file ? "check" : "upload"} size={28} /></div><h2>{file ? file.name : "拖放简历到这里"}</h2><p>{file ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : "支持 PDF、DOCX，单个文件不超过 15MB"}</p>
-    </div><div className="info-callout"><Icon name="spark" /><div><strong>Resume Parser v0.1</strong><p>AI 只提取简历明确支持的信息，不推断、不匹配职位；缺失或不确定内容会进入“待确认信息”。</p></div></div></>}
+    </div><div className="info-callout"><Icon name="spark" /><div><strong>Resume Parser v0.2 · Kimi 优先</strong><p>Kimi 失败时自动尝试 OpenAI。AI 只提取简历明确支持的信息；缺失或不确定内容会进入“待确认信息”。</p></div></div></>}
 
     {!!duplicates.length && <div className="duplicate-panel"><div className="duplicate-title"><Icon name="alert" size={24} /><div><h2>发现可能已有候选人</h2><p>系统不会自动覆盖任何旧数据，请选择处理方式。</p></div></div>
       <div className="duplicate-list">{duplicates.map(item => <button className={selected?.candidate.id === item.candidate.id ? "selected" : ""} key={item.candidate.id} onClick={() => { setSelected(item); setChoices(Object.fromEntries(item.conflicts.map(c => [c.field, "old"]))); }}><span className="avatar color">{item.candidate.name.slice(-2)}</span><span><strong>{item.candidate.name}</strong><small>{item.candidate.current_title || "—"} · {item.candidate.current_company || "—"}</small></span><em>Level {item.level} · {item.reason}</em></button>)}</div>
