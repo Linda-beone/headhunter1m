@@ -4,16 +4,21 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Candidate, Project } from "../lib/types";
 
-export function CandidateForm({ candidate, demo }: { candidate: Candidate; demo: boolean }) {
+export function CandidateForm({ candidate, tags = [], demo }: { candidate: Candidate; tags?: string[]; demo: boolean }) {
   const router = useRouter();
-  const [form, setForm] = useState({ name: candidate.name, phone: candidate.phone || "", email: candidate.email || "", current_city: candidate.current_city || "", current_company: candidate.current_company || "", current_title: candidate.current_title || "", years_experience: candidate.years_experience?.toString() || "", expected_salary: candidate.expected_salary?.toString() || "", location_preference: candidate.location_preference.join("、"), job_status: candidate.job_status, summary: candidate.summary || "" });
+  const [form, setForm] = useState({ name: candidate.name, age: candidate.age?.toString() || "", phone: candidate.phone || "", email: candidate.email || "", current_city: candidate.current_city || "", current_company: candidate.current_company || "", current_title: candidate.current_title || "", years_experience: candidate.years_experience?.toString() || "", current_salary: candidate.current_salary?.toString() || "", expected_salary: candidate.expected_salary?.toString() || "", location_preference: candidate.location_preference.join("、"), tags: tags.join("、"), job_status: candidate.job_status, summary: candidate.summary || "" });
   const [message, setMessage] = useState("");
   const set = (key: string, value: string) => setForm((old) => ({ ...old, [key]: value }));
   async function save() {
     if (demo) return setMessage("演示模式不会写入数据；连接 Supabase 后即可保存。 ");
-    const body = { ...form, years_experience: Number(form.years_experience) || null, expected_salary: Number(form.expected_salary) || null, location_preference: form.location_preference.split(/[、,，]/).map(s => s.trim()).filter(Boolean) };
+    const { tags: tagsText, ...fields } = form;
+    const body = { ...fields, age: Number(form.age) || null, years_experience: Number(form.years_experience) || null, current_salary: Number(form.current_salary) || null, expected_salary: Number(form.expected_salary) || null, location_preference: form.location_preference.split(/[、,，]/).map(s => s.trim()).filter(Boolean) };
     const response = await fetch(`/api/candidates/${candidate.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     if (!response.ok) return setMessage("保存失败，请检查字段后重试。");
+    if (tagsText !== tags.join("、")) {
+      const tagResponse = await fetch(`/api/candidates/${candidate.id}/tags`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ tags: tagsText.split(/[、,，]/).map(s => s.trim()).filter(Boolean) }) });
+      if (!tagResponse.ok) return setMessage("基本信息已保存，但标签保存失败。");
+    }
     router.push(`/candidates/${candidate.id}`); router.refresh();
   }
   async function remove() {
@@ -23,9 +28,9 @@ export function CandidateForm({ candidate, demo }: { candidate: Candidate; demo:
     if (response.ok) router.push("/candidates"); else setMessage("删除失败，请重试。");
   }
   return <div className="card form-card"><div className="form-grid">
-    <Field label="姓名 *" value={form.name} onChange={v => set("name", v)} /><Field label="手机" value={form.phone} onChange={v => set("phone", v)} /><Field label="邮箱" value={form.email} onChange={v => set("email", v)} /><Field label="当前城市" value={form.current_city} onChange={v => set("current_city", v)} />
-    <Field label="当前公司" value={form.current_company} onChange={v => set("current_company", v)} /><Field label="当前职位" value={form.current_title} onChange={v => set("current_title", v)} /><Field label="工作年限" value={form.years_experience} type="number" onChange={v => set("years_experience", v)} /><Field label="期望年薪（元）" value={form.expected_salary} type="number" onChange={v => set("expected_salary", v)} />
-    <Field label="意向城市（顿号分隔）" value={form.location_preference} onChange={v => set("location_preference", v)} /><label className="field"><span>求职状态</span><select value={form.job_status} onChange={e => set("job_status", e.target.value)}><option value="active">积极看机会</option><option value="open">开放机会</option><option value="passive">被动看机会</option><option value="not_looking">暂不考虑</option><option value="unknown">未知</option></select></label><label className="field full"><span>候选人摘要</span><textarea value={form.summary} onChange={e => set("summary", e.target.value)} rows={5} /></label>
+    <Field label="姓名 *" value={form.name} onChange={v => set("name", v)} /><Field label="年龄" value={form.age} type="number" onChange={v => set("age", v)} /><Field label="手机" value={form.phone} onChange={v => set("phone", v)} /><Field label="邮箱" value={form.email} onChange={v => set("email", v)} /><Field label="当前城市" value={form.current_city} onChange={v => set("current_city", v)} />
+    <Field label="当前公司" value={form.current_company} onChange={v => set("current_company", v)} /><Field label="当前职位" value={form.current_title} onChange={v => set("current_title", v)} /><Field label="工作年限" value={form.years_experience} type="number" onChange={v => set("years_experience", v)} /><Field label="当前年薪（元）" value={form.current_salary} type="number" onChange={v => set("current_salary", v)} /><Field label="期望年薪（元）" value={form.expected_salary} type="number" onChange={v => set("expected_salary", v)} />
+    <Field label="意向城市（顿号分隔）" value={form.location_preference} onChange={v => set("location_preference", v)} /><label className="field"><span>求职状态</span><select value={form.job_status} onChange={e => set("job_status", e.target.value)}><option value="active">积极看机会</option><option value="open">开放机会</option><option value="passive">被动看机会</option><option value="not_looking">暂不考虑</option><option value="unknown">未知</option></select></label><label className="field full"><span>标签（顿号分隔）</span><input value={form.tags} onChange={e => set("tags", e.target.value)} /></label><label className="field full"><span>候选人摘要</span><textarea value={form.summary} onChange={e => set("summary", e.target.value)} rows={5} /></label>
     </div>{message && <p className="form-message">{message}</p>}<div className="form-actions"><button className="danger" onClick={remove}>删除候选人</button><button className="secondary" onClick={() => router.back()}>取消</button><button className="primary" onClick={save}>保存修改</button></div></div>;
 }
 

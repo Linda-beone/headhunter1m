@@ -1,5 +1,6 @@
 import { candidates as demoCandidates, experiences, matches, pipelineEvents, projects as demoProjects, tags } from "./demo-data";
 import type { Candidate, Experience, Match, PipelineEvent, Project } from "./types";
+import type { ParsedResume } from "./ai/schemas/resume";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -18,9 +19,10 @@ async function fromSupabase<T>(path: string): Promise<T> {
 export type CandidateBundle = {
   candidate: Candidate;
   experiences: Experience[];
-  tags: Array<{ id: string; tag: string; tag_type: string; confidence: number }>;
+  tags: Array<{ id: string; tag: string; tag_type: string; confidence: number; evidence?: string | null; source?: string }>;
   matches: Array<Match & { project?: Project }>;
   pipeline: PipelineEvent[];
+  latestImport?: { id: string; original_filename: string; storage_path: string; parser_version: string; raw_parsed_json?: ParsedResume | null; completed_at?: string | null };
 };
 
 export async function getCandidates(): Promise<Candidate[]> {
@@ -44,13 +46,14 @@ export async function getCandidateBundle(id: string): Promise<CandidateBundle | 
     matches: matches.filter((item) => item.candidate_id === id).map((match) => ({ ...match, project: demoProjects.find((project) => project.id === match.project_id) })),
     pipeline: pipelineEvents.filter((item) => item.candidate_id === id),
   };
-  const [candidateExperiences, candidateTags, candidateMatches, pipeline] = await Promise.all([
+  const [candidateExperiences, candidateTags, candidateMatches, pipeline, imports] = await Promise.all([
     fromSupabase<Experience[]>(`candidate_experiences?candidate_id=eq.${id}&select=*&order=start_date.desc`),
     fromSupabase<CandidateBundle["tags"]>(`candidate_tags?candidate_id=eq.${id}&select=*&order=confidence.desc`),
     fromSupabase<CandidateBundle["matches"]>(`candidate_project_matches?candidate_id=eq.${id}&select=*,project:search_projects(*)&order=total_score.desc`),
     fromSupabase<PipelineEvent[]>(`pipeline_events?candidate_id=eq.${id}&select=*&order=event_date.desc`),
+    fromSupabase<CandidateBundle["latestImport"][]>(`resume_imports?candidate_id=eq.${id}&status=eq.completed&select=id,original_filename,storage_path,parser_version,raw_parsed_json,completed_at&order=completed_at.desc&limit=1`),
   ]);
-  return { candidate, experiences: candidateExperiences, tags: candidateTags, matches: candidateMatches, pipeline };
+  return { candidate, experiences: candidateExperiences, tags: candidateTags, matches: candidateMatches, pipeline, latestImport: imports[0] };
 }
 
 export async function getProjects(): Promise<Project[]> {

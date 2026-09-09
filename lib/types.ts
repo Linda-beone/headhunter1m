@@ -18,6 +18,11 @@ export type Candidate = {
   expected_salary?: number | null;
   resume_file_url?: string | null;
   summary?: string | null;
+  birth_date?: string | null;
+  highest_education?: string | null;
+  english_level?: string | null;
+  field_sources?: Record<string, "resume" | "ai_extracted" | "manual">;
+  manual_fields?: string[];
   updated_at: string;
 };
 
@@ -25,6 +30,9 @@ export type Experience = {
   id: string; candidate_id: string; company: string; title: string;
   start_date?: string | null; end_date?: string | null; city?: string | null;
   description?: string | null; industry?: string | null; product?: string | null;
+  normalized_company_name?: string | null; department?: string | null;
+  start_date_raw?: string | null; end_date_raw?: string | null;
+  responsibilities?: string[]; achievements?: string[]; technologies?: string[];
 };
 
 export type Project = {
