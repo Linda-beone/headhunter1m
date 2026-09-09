@@ -81,12 +81,20 @@ test("Golden 2 光迅候选人：明确高速光模块事实保留，CMIS/MSA/La
     gaps: ["CMIS/MSA未提及", "Laser未提及", "英语未提及"], risks: ["苏州地点意愿未知"],
     recommendation: "recommend_after_call", confidence: "high",
   }), optical, opticalCriteria);
+  const liuForOptical = finalizeMatchResult(raw({
+    scores: { technical: 20, industry_product: 30, location: 100, experience: 20, salary: null, intent: null },
+    must_have_results: opticalCriteria.map(item => ({ criterion: item.name, status: "unknown" as const, evidence: "", impact: "没有高速光模块事实" })),
+    strengths: ["明确考虑苏州"], gaps: ["没有高速光模块直接经验"], risks: ["技术方向不匹配"],
+    recommendation: "not_recommend", confidence: "high",
+  }), liuFacts(), opticalCriteria);
   assert.equal(result.match_level, "A");
   assert.equal(result.total_score, 89.9);
   assert.ok(result.must_have_results.every(item => item.status === "met"));
   assert.ok(result.gaps.includes("CMIS/MSA未提及"));
   assert.ok(!result.strengths.some(item => /CMIS|MSA|Laser/.test(item)));
-  assert.ok(result.total_score > 82.6);
+  assert.equal(liuForOptical.total_score, 36.5);
+  assert.equal(liuForOptical.match_level, "D");
+  assert.ok(result.total_score - liuForOptical.total_score > 50);
 });
 
 test("Matcher strict schema 禁止额外字段并要求全部顶层字段", () => {
