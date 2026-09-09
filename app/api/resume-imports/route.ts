@@ -8,6 +8,7 @@ const MAX_BYTES = 15 * 1024 * 1024;
 
 export async function POST(request: Request) {
   let storagePath: string | undefined;
+  let importId: string | undefined;
   try {
     const form = await request.formData();
     const file = form.get("file");
@@ -18,10 +19,14 @@ export async function POST(request: Request) {
     if (file.size > MAX_BYTES) return Response.json({ error: "文件超过 15MB，请压缩后重试。" }, { status: 413 });
     const bytes = await file.arrayBuffer();
     const id = newImportId();
+    importId = id;
     const safeName = file.name.normalize("NFKC").replace(/[^\p{L}\p{N}._-]+/gu, "_").slice(-120);
     storagePath = `${id}/${Date.now()}_${safeName}`;
     const uploaded = await uploadResume(storagePath, bytes, file.type);
-    if (!uploaded.ok) throw new Error("Supabase Storage 保存失败，请重试。");
+    if (!uploaded.ok) {
+      console.error("resume_storage_upload", { resume_import_id: id, status: uploaded.status, success: false });
+      throw new Error(storageUploadMessage(uploaded.status));
+    }
     const created = await supabaseWrite("resume_imports", { method: "POST", body: JSON.stringify({
       id, original_filename: file.name, storage_path: storagePath, mime_type: file.type,
       file_size: file.size, file_sha256: createHash("sha256").update(Buffer.from(bytes)).digest("hex"),
@@ -31,6 +36,16 @@ export async function POST(request: Request) {
     return Response.json({ importId: id, status: "uploaded" }, { status: 201 });
   } catch (error) {
     if (storagePath) await deleteResume([storagePath]).catch(() => undefined);
+    console.error("resume_upload", { resume_import_id: importId, success: false, error_type: error instanceof Error ? error.name : "unknown" });
     return Response.json({ error: error instanceof Error ? error.message : "上传失败。" }, { status: 500 });
   }
+}
+
+function storageUploadMessage(status: number) {
+  if (status === 401 || status === 403) return "Supabase Storage 鉴权失败，请检查 SUPABASE_SERVICE_ROLE_KEY 并重启开发服务。";
+  if (status === 404) return "找不到 resumes Storage bucket，请先执行第二阶段 migration。";
+  if (status === 413) return "Supabase Storage 拒绝了过大的文件，请确认文件不超过 15MB。";
+  if (status === 429) return "Supabase Storage 请求过于频繁，请稍后重试。";
+  if (status >= 500) return "Supabase Storage 暂时不可用，请稍后重试。";
+  return `Supabase Storage 拒绝保存文件（${status}），请检查 bucket 配置。`;
 }
