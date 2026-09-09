@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { deleteResume, supabaseWrite, uploadResume } from "../../../lib/admin";
 import { RESUME_PARSER_VERSION } from "../../../lib/ai/prompts/resume-parser";
 import { newImportId } from "../../../lib/resume/import-service";
+import { safeStorageFilename } from "../../../lib/resume/filename";
 
 const ALLOWED = new Set(["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
 const MAX_BYTES = 15 * 1024 * 1024;
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     const bytes = await file.arrayBuffer();
     const id = newImportId();
     importId = id;
-    const safeName = file.name.normalize("NFKC").replace(/[^\p{L}\p{N}._-]+/gu, "_").slice(-120);
+    const safeName = safeStorageFilename(file.name, extension!);
     storagePath = `${id}/${Date.now()}_${safeName}`;
     const uploaded = await uploadResume(storagePath, bytes, file.type);
     if (!uploaded.ok) {

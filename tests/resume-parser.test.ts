@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { buildConflicts, findDuplicates } from "../lib/resume/dedupe";
 import { resumeJsonSchema, validateParsedResume, type ParsedResume } from "../lib/ai/schemas/resume";
 import { parseResume } from "../lib/ai/resume-parser";
+import { safeStorageFilename } from "../lib/resume/filename";
 
 function resume(overrides: Partial<ParsedResume["candidate"]> = {}, experiences: ParsedResume["experiences"] = []): ParsedResume {
   return {
@@ -31,3 +32,7 @@ test("OpenAI API 失败时返回可重试错误", { concurrency: false }, async 
   finally { globalThis.fetch = oldFetch; if (oldKey) process.env.OPENAI_API_KEY = oldKey; else delete process.env.OPENAI_API_KEY; }
 });
 test("严格 schema 顶层禁止额外字段并要求所有字段", () => { assert.equal(resumeJsonSchema.additionalProperties, false); assert.deepEqual(new Set(resumeJsonSchema.required), new Set(Object.keys(resumeJsonSchema.properties))); });
+test("中文简历名转换为 Supabase Storage 可接受的 ASCII key", () => {
+  assert.equal(safeStorageFilename("刘柳-高级质量经理简历.pdf", "pdf"), "resume.pdf");
+  assert.equal(safeStorageFilename("Linda Liu 中文 Resume 2026.PDF", "pdf"), "Linda_Liu_Resume_2026.pdf");
+});
